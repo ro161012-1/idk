@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.12.1//EN" "http://gwtproject.org/doctype/2.12.1/gwt-module.dtd">
+<module rename-to="mindustry">
+
+    <!-- Inherit the core GWT modules -->
+    <inherits name="com.google.gwt.user.User"/>
+    <inherits name="com.google.gwt.user.theme.clean.Clean"/>
+    
+    <!-- Inherit libGDX/Arc GWT backend -->
+    <inherits name="arc.backends.gwt.GwtBackend"/>
+    
+    <!-- Specify the entry point class -->
+    <entry-point class="mindustry.html.HtmlLauncher"/>
+    
+    <!-- Source paths -->
+    <source path=""/>
+    <source path="../core"/>
+    
+    <!-- Public resources -->
+    <public path="web"/>
+    
+    <!-- Configure compiler options -->
+    <set-configuration-property name="gwt.enableClosureCompiler" value="true"/>
+    <set-configuration-property name="gwt.closureCompilerFlags" value="--compilation_level=ADVANCED_OPTIMIZATIONS --warning_level=QUIET --jscomp_off=*"/>
+    
+    <!-- Single permutation for faster compilation -->
+    <collapse-all-properties/>
+    
+    <!-- WebGL 2 configuration -->
+    <set-property name="gdx.gles2" value="true"/>
+    <set-property name="gdx.gles3" value="false"/>
+    
+    <!-- Disable features not supported in HTML5 -->
+    <set-property name="gdx.disableAudio" value="false"/>
+    <set-property name="gdx.disableCursor" value="false"/>
+    
+    <!-- Memory/settings -->
+    <set-property name="gwt.maxPermutationCount" value="1"/>
+    
+    <!-- ============================================================
+         EXCLUDE INCOMPATIBLE MODULES (MUST EXCLUDE THESE)
+         ============================================================ -->
+    
+    <!-- Generated code (uses reflection heavily) -->
+    <exclude name="**/gen/**"/>
+    
+    <!-- Mod system (class loading, scripts, reflection) -->
+    <exclude name="**/mod/**"/>
+    <exclude name="**/script/**"/>
+    
+    <!-- AI (threading, complex logic) -->
+    <exclude name="**/ai/**"/>
+    
+    <!-- Steam integration (native libraries) -->
+    <exclude name="**/steam/**"/>
+    <exclude name="**/desktop/steam/**"/>
+    
+    <!-- Discord RPC (native libraries) -->
+    <exclude name="**/discord/**"/>
+    
+    <!-- Desktop-specific -->
+    <exclude name="**/desktop/**"/>
+    
+    <!-- Server-specific -->
+    <exclude name="**/server/**"/>
+    
+    <!-- Android/iOS -->
+    <exclude name="**/android/**"/>
+    <exclude name="**/ios/**"/>
+    
+    <!-- Native backends -->
+    <exclude name="**/backend/sdl/**"/>
+    <exclude name="**/backend/headless/**"/>
+    
+    <!-- File dialogs (native) -->
+    <exclude name="**/filedialogs/**"/>
+    
+    <!-- Profiling/recorder (native) -->
+    <exclude name="**/profiling/**"/>
+    <exclude name="**/recorder/**"/>
+    
+    <!-- Annotation processors (compile-time only) -->
+    <exclude name="**/annotations/**"/>
+    
+    <!-- Tools (build-time only) -->
+    <exclude name="**/tools/**"/>
+    
+    <!-- Tests -->
+    <exclude name="**/tests/**"/>
+    
+    <!-- ============================================================
+         SPECIFIC PROBLEMATIC CLASSES
+         ============================================================ -->
+    <exclude name="**/TypeRegistry.java"/>
+    <exclude name="**/Vars.java"/>
+    <exclude name="**/ContentCreator*.java"/>
+    <exclude name="**/HeadlessPreferences.java"/>
+    
+    <!-- ============================================================
+         INCLUDE CORE GAMEPLAY MODULES
+         These are the packages we WANT to compile
+         ============================================================ -->
+    
+    <!-- Core game systems -->
+    <include name="**/content/**"/>
+    <include name="**/entities/**"/>
+    <include name="**/graphics/**"/>
+    <include name="**/game/**"/>
+    <include name="**/world/**"/>
+    <include name="**/ui/**"/>
+    <include name="**/type/**"/>
+    <include name="**/logic/**"/>
+    
+    <!-- Networking (WebSocket only) -->
+    <include name="**/net/**"/>
+    
+    <!-- Arc framework -->
+    <include name="arc/**"/>
+    
+</module>

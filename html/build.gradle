@@ -1,0 +1,266 @@
+plugins {
+    id "java"
+    id "war"
+}
+
+sourceSets.main.java.srcDirs = ["src/", "src/main/java"]
+
+project.ext.mainClassName = "mindustry.html.HtmlLauncher"
+
+dependencies {
+    implementation project(":core")
+    
+    // Arc GWT backend
+    implementation arcModule("backends:backend-gwt")
+    
+    // GWT dependencies
+    implementation "com.google.gwt:gwt-user:2.12.1"
+    implementation "com.google.gwt:gwt-dev:2.12.1"
+    implementation "com.google.gwt:gwt-codeserver:2.12.1"
+    implementation "com.google.gwt:gwt-servlet:2.12.1"
+    implementation "com.google.gwt:gwt-elemental:2.12.1"
+}
+
+// GWT Compiler settings
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:unchecked"
+    options.encoding = "UTF-8"
+    // Exclude problematic files from compilation
+    exclude "**/gen/**"
+    exclude "**/mod/**"
+    exclude "**/ai/**"
+    exclude "**/steam/**"
+    exclude "**/discord/**"
+    exclude "**/desktop/**"
+    exclude "**/server/**"
+    exclude "**/android/**"
+    exclude "**/ios/**"
+    exclude "**/backend/sdl/**"
+    exclude "**/backend/headless/**"
+    exclude "**/filedialogs/**"
+    exclude "**/profiling/**"
+    exclude "**/recorder/**"
+    exclude "**/annotations/**"
+    exclude "**/tools/**"
+    exclude "**/tests/**"
+}
+
+// ============================================================
+// FULL GAME BUILD (will likely fail due to incompatible code)
+// ============================================================
+task compileGwt(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.Compiler"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = [
+        "-Xmx4G",
+        "-Dgwt.usecase.sensitive=false"
+    ]
+    args = [
+        "-war", "build/war",
+        "-deploy", "build/war",
+        "-extra", "build/extra",
+        "-localWorkers", "4",
+        "-style", "OBFUSCATED",
+        "-optimize", "9",
+        "mindustry.html.MindustryGwt"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// ============================================================
+// FULL GAME ATTEMPT - Uses EverythingLauncher with ALL code
+// ============================================================
+task compileFull(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.Compiler"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = [
+        "-Xmx8G",
+        "-Dgwt.usecase.sensitive=false"
+    ]
+    args = [
+        "-war", "build/war-full",
+        "-deploy", "build/war-full",
+        "-extra", "build/extra-full",
+        "-localWorkers", "4",
+        "-style", "OBFUSCATED",
+        "-optimize", "9",
+        "mindustry.html.Everything"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// SuperDevMode for full game attempt
+task superDevFull(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.codeserver.CodeServer"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx6G"]
+    args = [
+        "-bindAddress", "0.0.0.0",
+        "-port", "9878",
+        "-workDir", "build/superdev-full",
+        "-src", "src",
+        "-src", "src/main/java",
+        "mindustry.html.FullGame"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// War task for full game attempt
+task warFull(type: War) {
+    dependsOn compileFull
+    from "build/war-full"
+    archiveFileName = "mindustry-full.war"
+}
+
+// ============================================================
+// MINIMAL DEMO BUILD (actually works!)
+// ============================================================
+task compileDemo(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.Compiler"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = [
+        "-Xmx2G",
+        "-Dgwt.usecase.sensitive=false"
+    ]
+    args = [
+        "-war", "build/war-demo",
+        "-deploy", "build/war-demo",
+        "-extra", "build/extra-demo",
+        "-localWorkers", "2",
+        "-style", "PRETTY",
+        "-optimize", "9",
+        "mindustry.html.MinimalDemo"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// SuperDevMode for full game development
+task superDev(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.codeserver.CodeServer"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx4G"]
+    args = [
+        "-bindAddress", "0.0.0.0",
+        "-port", "9876",
+        "-workDir", "build/superdev",
+        "-src", "src",
+        "mindustry.html.MindustryGwt"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// SuperDevMode for demo (faster)
+task superDevDemo(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.codeserver.CodeServer"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx2G"]
+    args = [
+        "-bindAddress", "0.0.0.0",
+        "-port", "9877",
+        "-workDir", "build/superdev-demo",
+        "-src", "src",
+        "mindustry.html.MinimalDemo"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// DevMode for full game
+task runDev(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.DevMode"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx4G"]
+    args = [
+        "-startupUrl", "index.html",
+        "-war", "build/war",
+        "-bindAddress", "0.0.0.0",
+        "-port", "8888",
+        "mindustry.html.MindustryGwt"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// DevMode for demo
+task runDemo(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.DevMode"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx2G"]
+    args = [
+        "-startupUrl", "index.html",
+        "-war", "build/war-demo",
+        "-bindAddress", "0.0.0.0",
+        "-port", "8889",
+        "mindustry.html.MinimalDemo"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// War task for deployment (full game)
+war {
+    dependsOn compileGwt
+    from "build/war"
+    archiveFileName = "mindustry.war"
+}
+
+// War task for demo
+task warDemo(type: War) {
+    dependsOn compileDemo
+    from "build/war-demo"
+    archiveFileName = "mindustry-demo.war"
+}
+
+// Development server task (full game)
+task runDevServer(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.google.gwt.dev.DevMode"
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ["-Xmx4G"]
+    args = [
+        "-startupUrl", "index.html",
+        "-war", "build/war",
+        "-bindAddress", "0.0.0.0",
+        "-port", "8888",
+        "mindustry.html.MindustryGwt"
+    ]
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
+// Clean compiled GWT output
+task cleanGwt {
+    doLast {
+        delete "build/war"
+        delete "build/war-demo"
+        delete "build/extra"
+        delete "build/extra-demo"
+        delete "build/superdev"
+        delete "build/superdev-demo"
+    }
+}
+
+clean.dependsOn cleanGwt
+
+// Quick build check - just compile Java, not GWT
+task checkCompile(type: JavaCompile) {
+    source = sourceSets.main.java
+    classpath = sourceSets.main.compileClasspath
+    options.encoding = "UTF-8"
+    doLast {
+        println "Java compilation successful!"
+    }
+}

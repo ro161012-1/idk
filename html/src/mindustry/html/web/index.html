@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Mindustry HTML5 Demo">
+    <title>Mindustry Demo</title>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d1a; font-family: monospace; }
+        
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0d1a; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+        #loading.hidden { opacity: 0; visibility: hidden; }
+        
+        .spinner { width: 60px; height: 60px; border: 4px solid #2a2a4a; border-top-color: #00d4ff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        #loading-text { color: #888; font-size: 14px; }
+        #version { color: #555; font-size: 12px; margin-top: 8px; }
+        
+        #error { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0d0d1a; z-index: 1000; padding: 20px; text-align: center; }
+        #error.visible { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #error h1 { color: #ff4444; margin-bottom: 10px; }
+        #error p { color: #ccc; max-width: 600px; }
+        #error pre { color: #666; background: #1a1a2e; padding: 12px; border-radius: 4px; text-align: left; overflow: auto; max-height: 300px; }
+        #retry { margin-top: 20px; padding: 12px 32px; background: #00d4ff; color: #0d0d1a; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        
+        canvas { display: block; width: 100% !important; height: 100% !important; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div id="loading-text">Loading Mindustry Demo...</div>
+        <div id="version">GWT + libGDX/Arc</div>
+    </div>
+    
+    <div id="error">
+        <h1>Failed to Load</h1>
+        <p id="error-msg"></p>
+        <pre id="error-details"></pre>
+        <button id="retry" onclick="location.reload()">Retry</button>
+    </div>
+    
+    <script>
+        function showError(msg, details) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.add('visible');
+            document.getElementById('error-msg').textContent = msg;
+            document.getElementById('error-details').textContent = details || '';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+        
+        // Check WebGL
+        function checkWebGL() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                if (!gl) return { ok: false, msg: 'WebGL not supported' };
+                return { ok: true, version: gl.getParameter(gl.VERSION) };
+            } catch (e) {
+                return { ok: false, msg: e.message };
+            }
+        }
+        
+        const webgl = checkWebGL();
+        if (!webgl.ok) {
+            showError('WebGL Required', 'Your browser does not support WebGL.\n' + webgl.msg);
+        } else {
+            document.getElementById('loading-text').textContent = 'WebGL OK: ' + webgl.version + ' - Loading game...';
+        }
+    </script>
+    
+    <!-- GWT Bootstrap - compiled module will be mindustrydemo/mindustrydemo.nocache.js -->
+    <script defer src="mindustrydemo/mindustrydemo.nocache.js"></script>
+</body>
+</html>

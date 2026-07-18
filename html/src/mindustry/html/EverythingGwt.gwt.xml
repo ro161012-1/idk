@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.12.1//EN" "http://gwtproject.org/doctype/2.12.1/gwt-module.dtd">
+<module rename-to="mindustry">
+
+    <!-- Inherit the core GWT modules -->
+    <inherits name="com.google.gwt.user.User"/>
+    <inherits name="com.google.gwt.user.theme.clean.Clean"/>
+    
+    <!-- Inherit libGDX/Arc GWT backend -->
+    <inherits name="arc.backends.gwt.GwtBackend"/>
+    
+    <!-- Specify the entry point class -->
+    <entry-point class="mindustry.html.EverythingLauncher"/>
+    
+    <!-- Source paths - INCLUDE EVERYTHING -->
+    <source path=""/>
+    <source path="../core"/>
+    <source path="../server/src"/>
+    
+    <!-- Public resources -->
+    <public path="web"/>
+    
+    <!-- Configure compiler options -->
+    <set-configuration-property name="gwt.enableClosureCompiler" value="true"/>
+    <set-configuration-property name="gwt.closureCompilerFlags" value="--compilation_level=ADVANCED_OPTIMIZATIONS --warning_level=QUIET --jscomp_off=* --language_in=ECMASCRIPT_2017 --language_out=ECMASCRIPT_2017"/>
+    
+    <!-- Single permutation for faster compilation -->
+    <collapse-all-properties/>
+    
+    <!-- WebGL 2 configuration -->
+    <set-property name="gdx.gles2" value="true"/>
+    <set-property name="gdx.gles3" value="false"/>
+    
+    <!-- Disable features not supported in HTML5 -->
+    <set-property name="gdx.disableAudio" value="false"/>
+    <set-property name="gdx.disableCursor" value="false"/>
+    
+    <!-- Memory/settings -->
+    <set-property name="gwt.maxPermutationCount" value="1"/>
+    
+    <!-- ============================================================
+         ONLY EXCLUDE NATIVE LIBRARIES AND PLATFORM-SPECIFIC CODE
+         EVERYTHING ELSE IS INCLUDED - WE PROVIDE STUBS/EMULATION
+         ============================================================ -->
+    
+    <!-- Native backends only -->
+    <exclude name="**/backend/sdl/**"/>
+    <exclude name="**/backend/lwjgl3/**"/>
+    
+    <!-- Steam natives -->
+    <exclude name="**/steam/**"/>
+    <exclude name="**/desktop/steam/**"/>
+    
+    <!-- Discord natives -->
+    <exclude name="**/discord/**"/>
+    
+    <!-- Android/iOS specific -->
+    <exclude name="**/android/**"/>
+    <exclude name="**/ios/**"/>
+    
+    <!-- File dialogs (native) - we provide HTML5 implementation -->
+    <exclude name="**/filedialogs/**"/>
+    
+    <!-- Annotation processors (compile-time only) -->
+    <exclude name="**/annotations/**"/>
+    
+    <!-- Tools (build-time only) -->
+    <exclude name="**/tools/**"/>
+    
+    <!-- Tests -->
+    <exclude name="**/tests/**"/>
+    
+    <!-- ============================================================
+         INCLUDE LITERALLY EVERYTHING ELSE
+         ============================================================ -->
+    
+    <!-- All mindustry packages -->
+    <include name="mindustry/**"/>
+    
+    <!-- All arc packages -->
+    <include name="arc/**"/>
+    
+    <!-- Server code (for hosting) -->
+    <include name="mindustry.server/**"/>
+    
+</module>
