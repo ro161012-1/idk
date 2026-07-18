@@ -1,0 +1,208 @@
+# .github/workflows/build-teavm.yml
+name: Build TeaVM Port
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - development
+          - demo
+
+env:
+  GRADLE_OPTS: "-Xms4g -Xmx16g"
+  JAVA_VERSION: "17"
+
+jobs:
+  teavm-production:
+    name: TeaVM Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Make scripts executable
+        run: chmod +x build-teavm.sh gradlew
+
+      - name: Build TeaVM Production
+        run: |
+          export GRADLE_OPTS="${{ env.GRADLE_OPTS }}"
+          ./gradlew :teaVM:teavmBuild --no-daemon -Dorg.gradle.jvmargs="${{ env.GRADLE_OPTS }}" 2>&1 | tee build-teavm.log
+
+      - name: Verify build output
+        run: |
+          ls -la teaVM/build/teavm/
+          test -f teaVM/build/teavm/index.html && echo "✅ index.html exists"
+          test -f teaVM/build/teavm/mindustry.wasm && echo "✅ mindustry.wasm exists"
+          test -f teaVM/build/teavm/mindustry.js && echo "✅ mindustry.js exists"
+          echo "WASM size: $(du -h teaVM/build/teavm/mindustry.wasm | cut -f1)"
+          echo "JS size: $(du -h teaVM/build/teavm/mindustry.js | cut -f1)"
+
+      - name: Upload TeaVM Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindustry-teavm-production
+          path: teaVM/build/teavm/
+          retention-days: 30
+          compression-level: 6
+
+  teavm-development:
+    name: TeaVM Development Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Make scripts executable
+        run: chmod +x build-teavm.sh gradlew
+
+      - name: Build TeaVM Development (with source maps)
+        run: |
+          export GRADLE_OPTS="${{ env.GRADLE_OPTS }}"
+          ./gradlew :teaVM:teavmBuild -PteavmDebug=true --no-daemon -Dorg.gradle.jvmargs="${{ env.GRADLE_OPTS }}" 2>&1 | tee build-teavm-dev.log
+
+      - name: Upload TeaVM Dev Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindustry-teavm-development
+          path: teaVM/build/teavm/
+          retention-days: 7
+
+  gwt-demo:
+    name: GWT Demo Build (Fast)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Make scripts executable
+        run: chmod +x build-demo.sh gradlew
+
+      - name: Build GWT Demo
+        run: |
+          export GRADLE_OPTS="-Xms1g -Xmx4g"
+          ./gradlew :html:compileDemo --no-daemon -Dorg.gradle.jvmargs="-Xms1g -Xmx4g" 2>&1 | tee build-demo.log
+
+      - name: Verify Demo Build
+        run: |
+          ls -la html/build/war-demo/
+          test -f html/build/war-demo/mindustrydemo/index.html && echo "✅ Demo index.html exists"
+
+      - name: Upload GWT Demo Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindustry-gwt-demo
+          path: html/build/war-demo/
+          retention-days: 14
+
+  shader-conversion:
+    name: Shader Conversion (GLSL 330 → WebGL 2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Run Shader Converter
+        run: |
+          ./gradlew :teaVM:convertShaders --no-daemon 2>&1 | tee build-shaders.log
+
+      - name: Upload Shader Log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shader-conversion-log
+          path: build-shaders.log
+          retention-days: 7
+
+  release-package:
+    name: Create Release Package
+    runs-on: ubuntu-latest
+    needs: [teavm-production, gwt-demo, shader-conversion]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    steps:
+      - name: Download TeaVM Production
+        uses: actions/download-artifact@v4
+        with:
+          name: mindustry-teavm-production
+          path: release/teavm
+
+      - name: Download GWT Demo
+        uses: actions/download-artifact@v4
+        with:
+          name: mindustry-gwt-demo
+          path: release/gwt-demo
+
+      - name: Create Release ZIP
+        run: |
+          cd release
+          zip -r mindustry-web-${{ github.sha::8 }}.zip teavm/ gwt-demo/
+          echo "Release package created: mindustry-web-${{ github.sha::8 }}.zip"
+
+      - name: Upload Release Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindustry-web-release
+          path: release/*.zip
+          retention-days: 90
