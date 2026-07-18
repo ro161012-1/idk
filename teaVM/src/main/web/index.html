@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Mindustry - Automation Tower Defense RTS (TeaVM WebAssembly Port)">
+    <title>Mindustry</title>
+    
+    <link rel="icon" type="image/png" href="assets/icons/icon_64.png">
+    <link rel="apple-touch-icon" href="assets/icons/icon_192.png">
+    <meta name="theme-color" content="#1a1a2e">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d1a; font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0d1a; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        #loading-screen.hidden { opacity: 0; visibility: hidden; }
+        
+        #logo { width: 200px; height: 200px; background: url('assets/sprites/ui/logo.png') center/contain no-repeat; margin-bottom: 24px; animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
+        
+        #loading-bar { width: 300px; height: 4px; background: #2a2a4a; border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+        #loading-progress { width: 0%; height: 100%; background: linear-gradient(90deg, #00d4ff, #7c4dff); border-radius: 2px; transition: width 0.3s ease; }
+        
+        #loading-text { color: #888; font-size: 14px; text-align: center; }
+        #loading-stage { color: #666; font-size: 12px; margin-top: 4px; }
+        #version { color: #555; font-size: 12px; margin-top: 8px; }
+        
+        #error-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0d0d1a; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; padding: 20px; text-align: center; }
+        #error-screen.visible { display: flex; }
+        #error-icon { font-size: 64px; margin-bottom: 16px; }
+        #error-title { color: #ff4444; font-size: 24px; margin-bottom: 8px; }
+        #error-message { color: #ccc; font-size: 16px; max-width: 600px; line-height: 1.5; }
+        #error-details { color: #666; font-size: 12px; margin-top: 16px; max-width: 600px; font-family: monospace; background: #1a1a2e; padding: 12px; border-radius: 4px; text-align: left; overflow: auto; max-height: 200px; }
+        #retry-button { margin-top: 24px; padding: 12px 32px; background: #00d4ff; color: #0d0d1a; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        #retry-button:hover { background: #00a8cc; }
+        
+        #canvas-container { width: 100%; height: 100%; position: relative; }
+        canvas { display: block; width: 100% !important; height: 100% !important; }
+        
+        @media (max-width: 768px) {
+            #logo { width: 150px; height: 150px; }
+            #loading-bar { width: 90%; max-width: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div id="logo"></div>
+        <div id="loading-bar"><div id="loading-progress"></div></div>
+        <div id="loading-text">Initializing WebAssembly...</div>
+        <div id="loading-stage">Loading TeaVM runtime</div>
+        <div id="version">Mindustry v8 (TeaVM/WASM)</div>
+    </div>
+    
+    <div id="error-screen">
+        <div id="error-icon">⚠</div>
+        <div id="error-title">Failed to Load</div>
+        <div id="error-message"></div>
+        <div id="error-details"></div>
+        <button id="retry-button" onclick="location.reload()">Retry</button>
+    </div>
+    
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <script>
+        // Configuration
+        const GAME_CONFIG = {
+            moduleName: 'mindustry',
+            canvasId: 'canvas'
+        };
+        
+        let loadingProgress = 0;
+        let loadingStage = 'initializing';
+        
+        function updateLoading(progress, text, stage) {
+            const progressBar = document.getElementById('loading-progress');
+            const loadingText = document.getElementById('loading-text');
+            const loadingStageEl = document.getElementById('loading-stage');
+            if (progressBar) progressBar.style.width = Math.round(progress) + '%';
+            if (loadingText) loadingText.textContent = text;
+            if (loadingStageEl && stage) loadingStageEl.textContent = stage;
+            loadingProgress = progress;
+        }
+        
+        function showError(title, message, details) {
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('error-screen').classList.add('visible');
+            document.getElementById('error-title').textContent = title;
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-details').textContent = details || '';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-screen').classList.add('hidden');
+        }
+        
+        // Check WebGL 2 / WebAssembly support
+        function checkSupport() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl2');
+                if (!gl) {
+                    return { ok: false, msg: 'WebGL 2 not supported. Requires modern browser.' };
+                }
+                
+                // Check for required extensions
+                const requiredExtensions = [
+                    'EXT_color_buffer_float',
+                    'OES_texture_float_linear',
+                    'WEBGL_depth_texture'
+                ];
+                
+                const missing = requiredExtensions.filter(ext => !gl.getExtension(ext));
+                if (missing.length > 0) {
+                    console.warn('Missing WebGL extensions:', missing.join(', '));
+                }
+                
+                // Check WebAssembly
+                if (typeof WebAssembly !== 'object') {
+                    return { ok: false, msg: 'WebAssembly not supported.' };
+                }
+                
+                return { ok: true, version: gl.getParameter(gl.VERSION), renderer: gl.getParameter(gl.RENDERER) };
+            } catch (e) {
+                return { ok: false, msg: e.message };
+            }
+        }
+        
+        // Initialize IndexedDB for virtual filesystem
+        function initIndexedDB() {
+            return new Promise((resolve) => {
+                if (!window.indexedDB) {
+                    console.warn('IndexedDB not available');
+                    resolve();
+                    return;
+                }
+                
+                const request = indexedDB.open('MindustryFS', 1);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('files')) {
+                        db.createObjectStore('files');
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => {
+                    console.warn('IndexedDB error:', request.error);
+                    resolve();
+                };
+            });
+        }
+        
+        async function initGame() {
+            updateLoading(5, 'Checking browser support...', 'Browser Support');
+            
+            const support = checkSupport();
+            if (!support.ok) {
+                showError('Requirements Not Met', 'Your browser does not support the required features.', support.msg + '\n\nPlease try:\n• Chrome 80+\n• Firefox 75+\n• Edge 80+\n• Safari 14+');
+                return;
+            }
+            
+            updateLoading(10, 'WebGL 2 OK: ' + support.renderer, 'Initializing IndexedDB');
+            
+            await initIndexedDB();
+            
+            updateLoading(20, 'IndexedDB ready', 'Loading TeaVM runtime');
+            
+            // TeaVM will bootstrap automatically via the script tag
+            // We just need to wait for the module to load
+            try {
+                await waitForTeaVM();
+                
+                updateLoading(80, 'TeaVM loaded', 'Starting game engine');
+                
+                // The TeaVM entry point will create the canvas and start the game
+                // Listen for canvas creation
+                const container = document.getElementById('canvas-container');
+                const observer = new MutationObserver(() => {
+                    const canvas = container.querySelector('canvas');
+                    if (canvas) {
+                        observer.disconnect();
+                        updateLoading(100, 'Game ready!', 'Starting...');
+                        setTimeout(hideLoading, 500);
+                    }
+                });
+                observer.observe(container, { childList: true });
+                
+            } catch (error) {
+                showError('Failed to Start', 'An error occurred while loading the game.', error.stack || error.message);
+            }
+        }
+        
+        function waitForTeaVM() {
+            return new Promise((resolve, reject) => {
+                // Check if TeaVM is already loaded
+                if (window.teaVMOnLoad) {
+                    resolve();
+                    return;
+                }
+                
+                window.teaVMOnLoad = function(moduleName) {
+                    if (moduleName === GAME_CONFIG.moduleName) {
+                        resolve();
+                    }
+                };
+                
+                const checkInterval = setInterval(() => {
+                    if (window[GAME_CONFIG.moduleName] && window[GAME_CONFIG.moduleName].onModuleLoad) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 100);
+                
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    reject(new Error('TeaVM module load timeout'));
+                }, 120000); // 2 minutes for large WASM
+            });
+        }
+        
+        window.addEventListener('error', (event) => {
+            if (loadingProgress < 100) {
+                showError('Script Error', 'A JavaScript error occurred during loading.', event.message + '\n' + event.filename + ':' + event.lineno);
+            }
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            if (loadingProgress < 100) {
+                showError('Promise Rejection', 'An unhandled promise rejection occurred.', event.reason?.stack || event.reason?.message || String(event.reason));
+            }
+        });
+        
+        document.addEventListener('fullscreenchange', () => {
+            const canvas = document.querySelector('#canvas-container canvas');
+            if (canvas) {
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+            }
+        });
+        
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.tagName === 'CANVAS') e.preventDefault();
+        });
+        
+        // Prevent zoom on double tap
+        document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+        
+        // Start initialization
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
+        
+        // Export for TeaVM
+        window.MindustryTeaVM = {
+            updateLoading: updateLoading,
+            showError: showError,
+            hideLoading: hideLoading
+        };
+    </script>
+    
+    <!-- TeaVM Bootstrap Script -->
+    <script src="mindustry.js"></script>
+</body>
+</html>

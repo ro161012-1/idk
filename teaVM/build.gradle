@@ -1,0 +1,170 @@
+plugins {
+    id "java"
+    id "war"
+    id "org.teavm.gradle" version "0.10.0"
+}
+
+sourceSets.main.java.srcDirs = ["src/"]
+
+project.ext.mainClassName = "mindustry.teavm.TeaVMLauncher"
+
+dependencies {
+    implementation project(":core")
+    
+    // TeaVM standard library
+    implementation "org.teavm:teavm-classlib:0.10.0"
+    implementation "org.teavm:teavm-jso:0.10.0"
+    implementation "org.teavm:teavm-webgl:0.10.0"
+    implementation "org.teavm:teavm-websocket:0.10.0"
+    implementation "org.teavm:teavm-indexeddb:0.10.0"
+    implementation "org.teavm:teavm-dom:0.10.0"
+    implementation "org.teavm:teavm-wasm:0.10.0"
+    
+    // For reflection support
+    implementation "org.teavm:teavm-reflect:0.10.0"
+    
+    // Arc TeaVM backend - if available, otherwise use libGDX TeaVM backend
+    // The arcModule function from root build.gradle will resolve this
+    implementation arcModule("backends:backend-teavm")
+    
+    // If backend-teavm is not available, fall back to libGDX TeaVM backend
+    // implementation "com.badlogicgames.gdx:gdx-backend-teavm:1.12.1"
+}
+
+// TeaVM Configuration
+teavm {
+    targetDirectory = file("build/teavm")
+    mainClass = "mindustry.teavm.TeaVMLauncher"
+    
+    // Enable reflection for Mindustry's generated code and mod system
+    reflection {
+        // Include all Mindustry packages
+        include "mindustry.**"
+        include "arc.**"
+        
+        // Include specific classes that use reflection heavily
+        include "mindustry.Vars"
+        include "mindustry.content.*"
+        include "mindustry.type.*"
+        include "mindustry.entities.*"
+        include "mindustry.gen.*"
+        include "mindustry.mod.*"
+        include "mindustry.logic.*"
+        include "arc.assets.*"
+        include "arc.struct.*"
+        include "arc.util.*"
+        include "arc.graphics.*"
+        include "arc.math.*"
+        include "arc.files.*"
+        include "arc.net.*"
+        include "arc.audio.*"
+    }
+    
+    // Minification for production
+    minify = true
+    debugInformationGenerated = false
+    
+    // WebAssembly target
+    targetType = "wasm"
+    wasm {
+        optimizeForSize = true
+        generateNamesSection = false
+        // Enable threads for async logic
+        threads = true
+        // SIMD for performance
+        simd = true
+        // Exception handling
+        exceptions = true
+    }
+    
+    // Code splitting for large codebase
+    splitting = true
+    splitThreshold = 100000
+    
+    // Generate source maps for debugging
+    debugInformationGenerated = project.hasProperty("teavmDebug")
+    
+    // Optimization level
+    optimizationLevel = "full"
+    
+    // Exclude native-only classes from compilation
+    excludedClasses = [
+        "mindustry.desktop.**",
+        "mindustry.server.**",
+        "mindustry.android.**",
+        "mindustry.ios.**",
+        "mindustry.desktop.steam.**",
+        "mindustry.desktop.discord.**",
+        "arc.backend.sdl.**",
+        "arc.backend.lwjgl3.**",
+        "arc.backend.headless.**",
+        "arc.filedialogs.**",
+        "arc.profiling.**",
+        "arc.recorder.**",
+        "arc.tools.**",
+        "arc.annotations.**"
+    ]
+    
+    // Resource copying
+    resources {
+        include "assets/**"
+        include "shaders/**"
+    }
+}
+
+// Generate HTML wrapper
+task generateHtml(type: Copy) {
+    from "src/main/web"
+    into "build/teavm"
+    expand([
+        title: "Mindustry",
+        version: project.version,
+        wasmModule: "mindustry"
+    ])
+}
+
+// War task for deployment
+war {
+    dependsOn teavmBuild
+    from "build/teavm"
+    archiveFileName = "mindustry-teavm.war"
+}
+
+// Development server
+task runDev(type: JavaExec) {
+    dependsOn teavmBuild
+    mainClass = "org.teavm.tooling.server.DevServer"
+    classpath = configurations.runtimeClasspath + files(teavm.targetDirectory)
+    args = [
+        "--port", "8080",
+        "--dir", teavm.targetDirectory.path
+    ]
+}
+
+// Clean
+clean.dependsOn {
+    delete "build/teavm"
+}
+
+// Task to copy assets from core
+task copyAssets(type: Copy) {
+    dependsOn ":core:processResources"
+    from project(":core").file("build/resources/main/assets")
+    into "build/teavm/assets"
+}
+
+// Full build task
+task buildAll {
+    dependsOn copyAssets
+    dependsOn teavmBuild
+    dependsOn generateHtml
+}
+
+// Shader conversion task
+task convertShaders(type: JavaExec) {
+    dependsOn classes
+    mainClass = "mindustry.teavm.ShaderConverter"
+    classpath = sourceSets.main.runtimeClasspath
+    standardOutput = System.out
+    errorOutput = System.err
+}
